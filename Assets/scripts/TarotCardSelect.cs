@@ -1,61 +1,76 @@
-using Unity.VisualScripting;
+using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
-public class TarotCardSelect : MonoBehaviour
+public class DeckDragRotate : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    int curCardIdx = 0;
-    private Vector3 startPos;
     private Vector3 dragStartPos;
     private bool isDragging = false;
     public RectTransform deck;
+
+    public float maxAngleL = -88f;   // 왼쪽으로 최대 회전
+    public float maxAngleR = 67f;    // 오른쪽으로 최대 회전
+    public float sensitivity = 1.5f;   // 드래그 감도
+
+    private float baseAngle = -10f;  // 초기 각도
+    private float currentAngle;      // 현재 각도 (누적)
+
+    private int curCardIdx = 0;
+    public TextMeshProUGUI IdxTextTemp;
+
     void Start()
     {
-        
+        currentAngle = baseAngle;
+        deck.rotation = Quaternion.Euler(0, 0, currentAngle);
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (Input.GetMouseButtonDown(0))
         {
             dragStartPos = Input.mousePosition;
-            startPos = transform.position;
             isDragging = true;
         }
 
         if (Input.GetMouseButton(0) && isDragging)
         {
-            // 드래그 중
             Vector3 currentPos = Input.mousePosition;
             Vector3 delta = currentPos - dragStartPos;
 
-            // 화면 좌표 → 월드 좌표 변환 (UI면 RectTransform.anchoredPosition 사용)
-            transform.position = startPos + delta * 0.01f; // 감도 조절
+            // 현재 저장된 각도를 기준으로 드래그 값 추가
+            float angle = currentAngle + delta.x * sensitivity;
+            angle = Mathf.Clamp(angle, -88, 67);
+
+            deck.rotation = Quaternion.Euler(0, 0, angle);
+
+            // 각도 → 카드 인덱스 매핑
+            curCardIdx = (int)((-angle + 67 - 5.85) / 1.9);
+            if ((-angle + 67) < 5.85) curCardIdx = 0;
+            // 예: 범위를 26칸으로 나눈 경우 (필요에 맞게 수정)
         }
+
         if (Input.GetMouseButtonUp(0) && isDragging)
         {
-            // 터치 종료
-            Vector3 endPos = Input.mousePosition;
-            Vector3 swipeDelta = endPos - dragStartPos;
-
-            if (swipeDelta.magnitude > 200f)  // 일정 거리 이상
-            {
-                // 밀어내기
-                Rigidbody2D rb = GetComponent<Rigidbody2D>();
-                if (rb != null)
-                {
-                    rb.AddForce(swipeDelta.normalized * 500f); // 힘 줘서 날리기
-                }
-            }
-            else
-            {
-                // 제자리로 되돌리기
-                transform.position = startPos;
-            }
+            // 드래그 끝난 시점의 각도를 저장 → 다음 드래그 시작 기준
+            currentAngle = deck.eulerAngles.z;
+            if (currentAngle > 180f) currentAngle -= 360f; // -180~180 보정
 
             isDragging = false;
         }
-    }   
+
+        IdxTextTemp.text = curCardIdx.ToString();
+    }
+
+    private System.Collections.IEnumerator RotateBack()
+    {
+        Quaternion startRot = deck.rotation;
+        Quaternion targetRot = Quaternion.Euler(0, 0, baseAngle);
+        float t = 0;
+
+        while (t < 1)
+        {
+            t += Time.deltaTime * 3f;
+            deck.rotation = Quaternion.Lerp(startRot, targetRot, t);
+            yield return null;
+        }
+    }
 }
